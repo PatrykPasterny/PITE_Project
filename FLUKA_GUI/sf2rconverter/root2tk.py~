@@ -128,10 +128,10 @@ def plot_3d_2canvas(plot,tkroot):
       for histo in histos:
 #TODO try to connect the size of display with sizes of plots
          if num_hist==1:
-          figure = Figure(figsize=(14.44,7.3), dpi=100)#TODO check how big Figure is needed to fill canvas 
+          figure = Figure(figsize=(14,8), dpi=100)#TODO check how big Figure is needed to fill canvas 
           subplot = figure.add_subplot(111)
          elif num_hist==2:
-          figure = Figure(figsize=(14.4,4), dpi=100)#TODO check how big Figure is needed to fill canvas 
+          figure = Figure(figsize=(14,4), dpi=100)#TODO check how big Figure is needed to fill canvas 
           subplot = figure.add_subplot(111)
 
 	 xaxis = histo.GetXaxis()

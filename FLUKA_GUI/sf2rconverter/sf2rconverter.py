@@ -27,7 +27,7 @@ PLOT3D = True
 
 # this is the converter manager code
 #---
-if __name__ == '__main__':
+def main():
    # configure and run
    _MGR = sf2r_manager( DEBUG )
    _MGR.ff_type_detector()
@@ -47,15 +47,15 @@ if __name__ == '__main__':
    # make a test plot and store plots in file
    for plot in plots:
        if plot.get_type() == '1DPLOT':
-           if PLOT1D:
-               plot.get_histo().Draw('P')
+           #if PLOT1D:
+#plot.get_histo().Draw('P')
            plot.get_histo().Write()
        if plot.get_type() == '2DPLOT':
            if PLOT2D:
                gPad.SetLogz();
                gPad.SetGridx();
                gPad.SetGridy();
-               plot.get_histo().Draw('COLZ')
+               #plot.get_histo().Draw('COLZ')
            plot.get_histo().Write()
        if plot.get_type() == '3DPLOT':
            if PLOT3D:
@@ -64,16 +64,17 @@ if __name__ == '__main__':
                gPad.SetGridy();
                hist = plot.get_histo()
                for i in xrange(len(hist)):
-                  hist[i].Draw()
-                  raw_input('Close the window and press enter')
+                  #hist[i].Draw()
+                  #raw_input('Close the window and press enter')
                   hist[i].Write()
 
    file.Close()
 
-   print ' --> Press enter to finish... '
-   raw_input()
+   #print ' --> Press enter to finish... '
+   #raw_input()
 
-
+if __name__ == "__main__":
+    main()
 
 
 

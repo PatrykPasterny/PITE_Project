@@ -219,7 +219,7 @@ class ff_parser_1d(object):
             line = line.split(' ')
             elements = [ ch for ch in line if ch not in bchars ]
             if len( elements ):
-                if elements[0][:1].isdigit() or elements[0][:1] == '-':
+                if elements[0][:1].isdigit():
                     if float(elements[2])==0.:
                         if_break+=1
                         if if_break==5:
@@ -298,7 +298,7 @@ class ff_parser_2d(object):
             line = line.split(' ')
             elements = [ ch for ch in line if ch not in bchars ]
             if len( elements ) > 1:
-                if elements[0][:1].isdigit() or elements[0][:1] == '-':
+                if elements[0][:1].isdigit():
                     for el in elements:
                         self.__data.append( el )
                 else:
@@ -378,7 +378,7 @@ class ff_parser_3d(object):
             line = line.split(' ')
             elements = [ ch for ch in line if ch not in bchars ]
             if len( elements ) > 1:
-                if elements[0][:1].isdigit() or elements[0][:1] == '-':
+                if elements[0][:1].isdigit():
                     for el in elements:
                         self.__data.append( el )
                 else:

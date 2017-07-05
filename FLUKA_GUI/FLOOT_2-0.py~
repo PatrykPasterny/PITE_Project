@@ -6,7 +6,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from matplotlib.figure import Figure
 from Tkinter import *
 import tkFileDialog
-from sf2rconverter.root2tk import *
+from sf2rconverter.root2tk import plot_3d_2canvas, plot_2d_2canvas, plot_1d_2canvas
 from sf2rconverter.sf2r_lib import sf2r_manager, plot_1d, plot_2d, plot_3d
 import sf2rconverter.sf2rconverter
 from ROOT import TFile
@@ -150,7 +150,7 @@ class GUI(Frame):
         string = "python ./sf2rconverter/sf2rconverter.py -p " + self.folder
         print string
         os.system(string)
-        print "All files converted."
+
 
        if(self.file[-4:] == ".lis" or self.file[-5:]==".root"):
         self.STATUS("PLOTTING")

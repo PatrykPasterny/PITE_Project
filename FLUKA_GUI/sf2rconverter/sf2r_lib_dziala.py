@@ -32,7 +32,7 @@ class sf2r_manager(object):
            @__debug - flag that can be set to printout and debugging
            @__name  - if set only this file will be converted, if no name is
                       given the manager will make a list of all files with
-                      .lis and .dat extension
+                      .lis extension
            @__names - a list of names of files to convert (see also __name)
            @__types - pairs of file names and types
            
@@ -89,7 +89,7 @@ class sf2r_manager(object):
 
         if self.__name == None:
             olist = os.listdir( self.__path )
-            self.__names = [ n for n in olist if not os.path.isdir( self.__path + '/' + n ) and (n.split('.')[-1] == 'lis' or n.split('.')[-1] == 'dat') and n.split('.')[0][-3:] != 'sum' ]
+            self.__names = [ n for n in olist if not os.path.isdir( self.__path + '/' + n ) and n.split('.')[-1] == 'lis' and n.split('.')[0][-3:] != 'sum' ]
             if self.__debug:
                 print ' --> Will attempt to process the following files: '
                 for name in sorted( self.__names ):
@@ -174,7 +174,7 @@ class sf2r_manager(object):
         print '    -> use option -h or --help to print this message                                 '
         print '    -> use option -p or --path to specify the path to fluka files                    '
         print '    -> use option -n or --name to specify the name of file to be processed,          '
-        print '       if none is given all .lis and .dat files will be processed                             '
+        print '       if none is given all .lis files will be processed                             '
         print ' ##################################################################################  '
 
 # parser factory
@@ -219,7 +219,7 @@ class ff_parser_1d(object):
             line = line.split(' ')
             elements = [ ch for ch in line if ch not in bchars ]
             if len( elements ):
-                if elements[0][:1].isdigit() or elements[0][:1] == '-':
+                if elements[0][:1].isdigit():
                     if float(elements[2])==0.:
                         if_break+=1
                         if if_break==5:
@@ -298,7 +298,7 @@ class ff_parser_2d(object):
             line = line.split(' ')
             elements = [ ch for ch in line if ch not in bchars ]
             if len( elements ) > 1:
-                if elements[0][:1].isdigit() or elements[0][:1] == '-':
+                if elements[0][:1].isdigit():
                     for el in elements:
                         self.__data.append( el )
                 else:
@@ -378,7 +378,7 @@ class ff_parser_3d(object):
             line = line.split(' ')
             elements = [ ch for ch in line if ch not in bchars ]
             if len( elements ) > 1:
-                if elements[0][:1].isdigit() or elements[0][:1] == '-':
+                if elements[0][:1].isdigit():
                     for el in elements:
                         self.__data.append( el )
                 else:
@@ -440,8 +440,6 @@ class ff_parser_3d(object):
 			superposition += error_points[x+(nrbins*n)]
 		error_points.append(float(superposition/npbins))
 
-        del data_points[0:nrbins*npbins]
-        del error_points[0:nrbins*npbins]
         self.__histogram[ 'DATA' ] = data_points
         self.__histogram[ 'ERRORS' ] = error_points
         #print len( self.__histogram[ 'DATA' ] )
@@ -648,7 +646,10 @@ class plot_3d(object):
         #ddebg = [[],[],[],[] ]
         #edebg = [ [],[],[],[]]
         for it in xrange(len(self.__histo)):
-            self.__histo[it] = TH1F(name, name, int(nrbins), float(rl), float(ru))
+            self.__histo[it] = TH1F(name+'_part_'+str(it+1), name+'_part_'+str(it+1), int(nrbins), float(rl), float(ru))
+			#SUPERPOSITION COMING RIGHT NOW!!!
+            self.__histo[n_of_histo-1] = TH1F(name+'_average', name+'_average', int(nrbins), float(rl), float(ru))
+			#AND ENDS RIGHT HERE
          
         for indx, data_point in enumerate( hdata[ 'DATA' ] ):
             self.__histo[int(indx/nrbins)].SetBinContent( indx%nrbins+1, data_point )
