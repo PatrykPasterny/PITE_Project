@@ -12,8 +12,8 @@ import sf2rconverter.sf2rconverter
 from ROOT import TFile
 import tkMessageBox
 import tkTree as tkt
-import os
-from os import *
+import os, sys, getopt
+from os import path, listdir, system
 import subprocess as sub
 
 
@@ -36,7 +36,9 @@ class GUI(Frame):
 		#VARIABLES
 		self.filelist=[]
 		self.file=" "
-		self.folder="./Test/Data"
+		folderWithData = open('save.txt', 'r')
+		self.folder = folderWithData.readline().replace("\n","")
+		folderWithData.close()
 		self.canvas=[]
 		self.TOOLBAR=[]
 		self.number=3
@@ -57,7 +59,7 @@ class GUI(Frame):
 		self.l1=Label(self.win,text="START")
 
 		# TREES
-		self.tree = tkt.Tree(self.win,'./Test/Data','FLUKA_DIR',get_contents_callback=get_contents)
+		self.tree = tkt.Tree(self.win,self.folder,'FLUKA_DIR',get_contents_callback=get_contents)
 
 		self.canv_logo = Canvas(self.win,width=400,height=200)
 		############################################
@@ -65,7 +67,7 @@ class GUI(Frame):
 		self.l1.grid(column=0,row=0, sticky=NE+SW)
 		self.tree.grid(column = 0, row = 1, rowspan = 3, sticky=NE+SW)
 		self.canv_logo.grid(column=0,row=4, rowspan =2, sticky=N+S+W+E)
-		self.logo = PhotoImage(file="floot1.gif")
+		self.logo = PhotoImage(file="./FLOOT_Logo/floot1.gif")
 		self.canv_logo.image = self.logo
  
 
@@ -119,83 +121,88 @@ class GUI(Frame):
 			print "All files converted."
 			tkMessageBox.showinfo("SUCCESS", "All files converted.")
 			self.tree.focus_set()
+		else:
+			if(self.file[-4:] == ".lis" or self.file[-4:]==".dat" or self.file[-5:]==".root"):
+				self.STATUS("PLOTTING")
+				MGR = sf2r_manager( False  , True) #DEBUG = False API = True
 
-		if(self.file[-4:] == ".lis" or self.file[-4:]==".dat" or self.file[-5:]==".root"):
-			self.STATUS("PLOTTING")
-			MGR = sf2r_manager( False  , True) #DEBUG = False API = True
+				if (self.file[-4:] == ".lis" or self.file[-4:]==".dat"):
+					plots = MGR.run_path(self.folder,self.file) # tu wywala TH1F'y
+					file = None
+					if not os.path.exists( 'fluka2root_one_detector.root' ):
+						file = TFile( 'fluka2root_one_detector.root', 'new' )
+					else:
+						file = TFile( 'fluka2root_one_detector.root', 'recreate' )
 
-			if (self.file[-4:] == ".lis" or self.file[-4:]==".dat"):
-				plots = MGR.run_path(self.folder,self.file) # tu wywala TH1F'y
-				file = None
-				if not os.path.exists( 'fluka2root_one_detector.root' ):
-					file = TFile( 'fluka2root_one_detector.root', 'new' )
+					for chart in plots:
+						if chart.get_type() == '1DPLOT' or chart.get_type() == '2DPLOT' or chart.get_type() == '3DPLOT':
+							chart.get_histo().Write()
+						else:
+							histos=chart.get_histo()
+							for histo in histos:
+								histo.Write()
+
+					file.Close()
+
 				else:
-					file = TFile( 'fluka2root_one_detector.root', 'recreate' )
+					f = ROOT.TFile.Open(self.file)
+					keys = f.GetListOfKeys()
+					plots=[]
+					p=[]
+					for el in keys:
+						p.append(f.Get(el.GetName()))
+						plots.append(p)
 
-				for chart in plots:
-					if chart.get_type() == '1DPLOT' or chart.get_type() == '2DPLOT':
-						chart.get_histo().Write()
-					else:
-						histos=chart.get_histo()
-						for histo in histos:
-							histo.Write()
+				if plot == False:
+					self.STATUS("FILE " + self.file + " ONLY CONVERTED")
 
-				file.Close()
-
-			else:
-				f = ROOT.TFile.Open(self.file)
-				keys = f.GetListOfKeys()
-				plots=[]
-				p=[]
-				for el in keys:
-					p.append(f.Get(el.GetName()))
-					plots.append(p)
-
-			if plot == False:
-				self.STATUS("FILE " +self.file+" ONLY CONVERTED")
-
-			else:
-				if self.canvas:
-					for i in xrange (len(self.canvas[0])):
-						self.canvas[0][i].get_tk_widget().destroy()
-						if len(self.TOOLBAR)>0:
-							self.TOOLBAR[i].destroy()  
-						pass
-
-				self.canvas=[]
-				self.TOOLBAR=[]
-
-
-				if isinstance(plots[0],plot_1d):
-					self.canvas.append(plot_1d_2canvas(plots[0],self.win))
-				elif isinstance(plots[0],plot_2d):
-					self.canvas.append(plot_2d_2canvas(plots[0],self.win))
-				elif isinstance(plots[0],plot_3d):
-					self.canvas.append(plot_3d_2canvas(plots[0],self.win))
 				else:
-					output = plot_3d_2canvas(plots[0],self.win)
-					if type(output) == str:
-						print output
-						self.STATUS("ERROR")
-						tkMessageBox.showinfo("ERROR", "The amount of histos in .root file should be less than 9.")
-					else:
-						self.canvas.append(output)#TODO!!!!!  
+					if self.canvas:
+						for i in xrange (len(self.canvas[0])):
+							if any(isinstance(x, str) for x in self.canvas):
+								self.canvas = []
+							else:
+								self.canvas[0][i].get_tk_widget().destroy()
+								if len(self.TOOLBAR)>0:
+									self.TOOLBAR[i].destroy()  
+								pass
 
-				if self.file[-4:] == ".lis" or self.file[-4:]==".dat" or type(output)!=str:
-					self.number=len(self.canvas[0])
-					self.layouts(self.number)
-					if self.file[-5:]==".root":
-						self.STATUS("FILE " +self.file+" PLOTTED")
-					else:
-						self.STATUS("FILE " +self.file+" CONVERTED AND PLOTTED")
+					self.canvas=[]
+					self.TOOLBAR=[]
 
-		self.tree.focus_set()
+					if isinstance(plots[0],plot_1d):
+						self.canvas.append(plot_1d_2canvas(plots[0],self.win))
+					elif isinstance(plots[0],plot_2d):
+						self.canvas.append(plot_2d_2canvas(plots[0],self.win))
+					elif isinstance(plots[0],plot_3d):
+						self.canvas.append(plot_3d_2canvas(plots[0],self.win))
+					else:
+						self.canvas.append(plot_3d_2canvas(plots[0],self.win))
+
+					if any(isinstance(x, str) for x in self.canvas): 
+						print self.canvas[0]
+						self.STATUS( "ERROR" )
+						tkMessageBox.showinfo("ERROR", self.canvas[0]) 
+						self.STATUS( "FILE " + self.file + " CONVERTED" )
+
+					if self.file[-4:] == ".lis" or self.file[-4:]==".dat" or not any(isinstance(x, str) for x in self.canvas):
+						self.number = len(self.canvas[0])
+						self.layouts(self.number)
+						if self.file[-5:]==".root":
+							self.STATUS("FILE " +self.file+" PLOTTED")
+						else:
+							self.STATUS("FILE " +self.file+" CONVERTED AND PLOTTED")
+
+			self.tree.focus_set()
 
 	def FOLDER(self):
 		self.tree.delete(0,END)
 		folder=tkFileDialog.askdirectory()
 		if(folder!='' and isinstance(folder,str)):
 			self.folder=folder
+			folderWithData = open('save.txt', 'w')
+			folderWithData.write(folder)
+			folderWithData.close()
 			self.tree = tkt.Tree(self.win,self.folder,"FLUKA_DIR",get_contents_callback=get_contents)
 			self.tree.configure(background='#EEEEEE', relief='sunken',borderwidth=3)
 			self.tree.grid(column = 0, row = 1, rowspan = 5, sticky=NE+SW)
@@ -237,16 +244,15 @@ class GUI(Frame):
 		print "CONVERTING ONLY .lis AND .dat FILES"
 		self.LOAD(plot=False,all=True)
 		self.tree.focus_set()
+
 	def HELP(self):
-		tkMessageBox.showinfo("Help info","Use your arrow keys to choose file\nENTER to confirm your choice\nYou can only convert this file to ROOT format by clicking CONVERT,\n convert it and plot, by clicking CONVERT AND PLOT and plot ROOT files(You can plot maximum 9 ROOT plots on display so make sure that .root file consist less histos than 9). Click CONVERT ALL DIRECTORY to make .root file with histos from all given directory. By clicking CHANGE DIRECTORY you can change folder with data to process.")
+		tkMessageBox.showinfo("Help info","Use your arrow keys with ENTER or mouse double click to choose file\nYou can only convert this file to ROOT format by clicking CONVERT,\n convert it and plot, by clicking CONVERT AND PLOT and plot ROOT files.\n Click CONVERT ALL DIRECTORY to make .root file with histos from all given directory.\n By clicking CHANGE DIRECTORY you can change folder with data to process.")
 		self.tree.focus_set()
-
-
 
 if __name__ == "__main__":
 	
 	root=Tk()
-
-	GUI(root)
+	GUI( root )
 	root.mainloop()
+	
 

@@ -1,4 +1,4 @@
- ###-------------------------------------------------------------------
+###-------------------------------------------------------------------
 #
 """ 
    --> core functionality of the smart converter service
@@ -7,14 +7,13 @@
 #
 #  @Agnieszka Oblakowska-Mucha
 #  @Tomasz Szumlak
-#  @Patryk Pasterny
 #
 ###--------------------------------------------------------------------
 
 # import section
 import os, sys, getopt
 from commands import getoutput
-from ROOT import TH1F, TH3, TH3D, kTRUE, kRed
+from ROOT import TH1F, TH2D, kTRUE, kRed
 from ctypes import *
 from itertools import count
 import numpy as np
@@ -23,48 +22,42 @@ unique_cnt = count()
 
 class sf2r_manager(object):
     # first grab the path and file name
-    def __init__(self, debug = False, api = False):
+    def __init__(self, debug = False):
         """
 
            __init__() - constructor
            class fields
            @__path  - path to the files produced by fluka
-           @__debug - flag that can be set to  .printout and debugging
+           @__debug - flag that can be set to printout and debugging
            @__name  - if set only this file will be converted, if no name is
                       given the manager will make a list of all files with
-                      .lis and .dat extension
+                      .lis extension
            @__names - a list of names of files to convert (see also __name)
            @__types - pairs of file names and types
            
         """
 
+        self.__path = None
         self.__debug = debug
+        self.__name = None
         self.__names = []
         self.__1dplot = '1DPLOT'
         self.__2dplot = '2DPLOT'
         self.__3dplot = '3DPLOT'
         self.__types = {}
 
-	if api: #prevents wiping out text interface
-	   self.__path = "None"
-	   self.__name = "None"
-	else:
-	   self.__path = None
-	   self.__name = None
-
         try:
             opts, args = getopt.getopt( sys.argv[1:], 'hp:d:n:', ['help', 'path=', 'debug=', 'name='])
         except getopt.GetoptError, err:
             print str(err)
             self.__help()
+            sys.exit( 2 )
         if len( opts ) == 0:
             self.__help()
-	    if not api:
-               sys.exit( 2 )
+            sys.exit( 2 )
         for opt, arg in opts:
             if opt in ( '-h', '--help' ):
                 self.__help()
-		sys.exit( 2 )
             elif opt in ( '-p', '--path' ):
                 self.__path = arg
                 if self.__path and os.path.exists( self.__path ):
@@ -89,14 +82,14 @@ class sf2r_manager(object):
 
         if self.__name == None:
             olist = os.listdir( self.__path )
-            self.__names = [ n for n in olist if not os.path.isdir( self.__path + '/' + n ) and (n.split('.')[-1] == 'lis' or n.split('.')[-1] == 'dat') and n.split('.')[0][-3:] != 'sum' ]
+            self.__names = [ n for n in olist if not os.path.isdir( self.__path + '/' + n ) and n.split('.')[-1] == 'lis' and n.split('.')[0][-3:] != 'sum' ]
             if self.__debug:
                 print ' --> Will attempt to process the following files: '
                 for name in sorted( self.__names ):
                     print name
         else:
             print ' --> Will process: ', self.__name
-   
+
     def ff_type_detector(self):
         print ' --> Checking the content of the fluka files '
         command_str_2d = 'grep \'X coordinate\' '
@@ -136,13 +129,6 @@ class sf2r_manager(object):
         hfactory = histo_plot_factory( parsers )
         return ( hfactory.plot_creator() )
 
-    def run_path(self, path, name):
-	#replace path and run normally
-	self.__path = path
-	self.__name = name
-	self.ff_type_detector()
-        return self.run()
-
     def __engine_run(self):
         parsers = self.__create_parsers()
         return ( parsers )
@@ -174,7 +160,7 @@ class sf2r_manager(object):
         print '    -> use option -h or --help to print this message                                 '
         print '    -> use option -p or --path to specify the path to fluka files                    '
         print '    -> use option -n or --name to specify the name of file to be processed,          '
-        print '       if none is given all .lis and .dat files will be processed                    '
+        print '       if none is given all .lis files will be processed                             '
         print ' ##################################################################################  '
 
 # parser factory
@@ -214,21 +200,12 @@ class ff_parser_1d(object):
     def __detect_data(self):
         bchars = ['', '#']
         raw = self.__f_ptr.read().split('\n')
-        if_break=0
         for line in raw:
             line = line.split(' ')
             elements = [ ch for ch in line if ch not in bchars ]
             if len( elements ):
-                if elements[0][:1].isdigit() or elements[0][:1] == '-':
-                    if float(elements[2])==0.:
-                        if_break+=1
-                        if if_break==5:
-                            break
-                        else:
-                            pass
-                    else:
-                        self.__data.append( elements )
-                        if_break=0
+                if elements[0][:1].isdigit():
+                    self.__data.append( elements )
                 else:
                     self.__header.append( elements )
         #print ' -> header: ', self.__header 
@@ -237,9 +214,8 @@ class ff_parser_1d(object):
         # these corresond to the header structure, we grab the histo name and the binning
         histo_name = ( 0, 3 )
         bins = ( 1, -1 )
-        self.__header_info[ 'H_NAME' ] = self.__header[ histo_name[0] ][ histo_name[1] ].replace("\"","")
-        #self.__header_info[ 'BINS' ] = int( self.__header[ bins[0] ][ bins[1] ] )
-        self.__header_info[ 'BINS' ] = int(len(self.__data)) 
+        self.__header_info[ 'H_NAME' ] = self.__header[ histo_name[0] ][ histo_name[1] ]
+        self.__header_info[ 'BINS' ] = int( self.__header[ bins[0] ][ bins[1] ] )
         #print self.__header_info[ 'H_NAME' ], self.__header_info[ 'BINS' ]
         
     def __decode_data(self):
@@ -272,9 +248,6 @@ class ff_parser_1d(object):
     def get_file_name(self):
         return ( self.__file_name )
 
-    def get_parser(self):
-	return ( self.__parser )
-
 # parser 2d type
 class ff_parser_2d(object):
     def __init__(self, file_ptr, file_name):
@@ -298,7 +271,7 @@ class ff_parser_2d(object):
             line = line.split(' ')
             elements = [ ch for ch in line if ch not in bchars ]
             if len( elements ) > 1:
-                if elements[0][:1].isdigit() or elements[0][:1] == '-':
+                if elements[0][:1].isdigit():
                     for el in elements:
                         self.__data.append( el )
                 else:
@@ -312,7 +285,7 @@ class ff_parser_2d(object):
         xran = ( 1, 3, 5 )
         yran = ( 2, 3, 5 )
         zran = ( 3, 5 )
-        self.__header_info[ 'H_NAME' ] = self.__header[ histo_name[0] ][ histo_name[1] ].replace("\"","")
+        self.__header_info[ 'H_NAME' ] = self.__header[ histo_name[0] ][ histo_name[1] ]
         self.__header_info[ 'XBINS' ] = int( self.__header[ bins[0] ][ bins[3] ] )
         self.__header_info[ 'YBINS' ] = int( self.__header[ bins[1] ][ bins[3] ] )
         self.__header_info[ 'ZBINS' ] = int( self.__header[ bins[2] ][ bins[3] ] )
@@ -333,14 +306,9 @@ class ff_parser_2d(object):
         # these constants pertain to the location of the data
         self.__histogram[ 'TYPE' ] = self.__ptype
         data_points = []
-        error_points = []
-        
-        for x in xrange(len(self.__data)/2):
-            data_points.append(float(self.__data[x]))
-        for x in xrange(len(self.__data)/2,len(self.__data)):
-            error_points.append(float(self.__data[x]))
-        #for el in self.__data:
-            #data_points.append( float( el ) )
+
+        for el in self.__data:
+            data_points.append( float( el ) )
             
         self.__histogram[ 'DATA' ] = data_points
         #print len( self.__histogram[ 'DATA' ] )
@@ -356,9 +324,7 @@ class ff_parser_2d(object):
 
     def get_file_name(self):
         return ( self.__file_name )
-    
-    def get_parser(self):
-	return ( self.__parser )
+
 
 # parser 3d type
 class ff_parser_3d(object):
@@ -383,7 +349,7 @@ class ff_parser_3d(object):
             line = line.split(' ')
             elements = [ ch for ch in line if ch not in bchars ]
             if len( elements ) > 1:
-                if elements[0][:1].isdigit() or elements[0][:1] == '-':
+                if elements[0][:1].isdigit():
                     for el in elements:
                         self.__data.append( el )
                 else:
@@ -392,68 +358,54 @@ class ff_parser_3d(object):
 
     def __decode_header(self):
         # these corresond to the header structure, we grab the histo name and the binning
-        if "P" in self.__header[ 2 ][ 0 ]:
-            histo_name = ( 0, 4 )
-            bins = ( 1, 2, 3, 7 )
-            rran = ( 1, 3, 5 )
-            pran = ( 2, 3, 5 )
-            zran = ( 3, 3, 5 )
-            self.__header_info[ 'PBINS' ] = int( self.__header[ bins[1] ][ bins[3] ] )
-            pl = float( self.__header[ pran[0] ][ pran[1] ] )
-            ph = float( self.__header[ pran[0] ][ pran[2] ] )
-
-        else:
-            histo_name = ( 0, 6 )
-            bins = ( 1, 2, 2, 7 )
-            rran = ( 1, 3, 5 )
-            zran = ( 2, 3, 5 )
-            self.__header_info[ 'PBINS' ] = 1
-            pl = -3.1416E+00
-            ph = 3.1416E+00
-
+        histo_name = ( 0, 4 )
+        bins = ( 1, 2, 3, 7 )
+        rran = ( 1, 3, 5 )
+        pran = ( 2, 3, 5 )
+        zran = ( 3, 5 )
         self.__header_info[ 'H_NAME' ] = self.__header[ histo_name[0] ][ histo_name[1] ]
-
         self.__header_info[ 'RBINS' ] = int( self.__header[ bins[0] ][ bins[3] ] )
+        self.__header_info[ 'PBINS' ] = int( self.__header[ bins[1] ][ bins[3] ] )
         self.__header_info[ 'ZBINS' ] = int( self.__header[ bins[2] ][ bins[3] ] )
-
         rl = float( self.__header[ rran[0] ][ rran[1] ] )
         rh = float( self.__header[ rran[0] ][ rran[2] ] )
         self.__header_info[ 'RRAN' ] = ( rl, rh )
-
+        pl = float( self.__header[ pran[0] ][ pran[1] ] )
+        ph = float( self.__header[ pran[0] ][ pran[2] ] )
         self.__header_info[ 'PRAN' ] = ( pl, ph )
-
-        zl = float( self.__header[ zran[ 0 ] ][ zran[ 1 ] ] )
-        zh = float( self.__header[ zran[ 0 ] ][ zran[ 2 ] ] )
+        zl = float( self.__header[ zran[0] ][ zran[0] ] )
+        zh = float( self.__header[ zran[0] ][ zran[1] ] )
         self.__header_info[ 'ZRAN' ] = ( zl, zh )
 
-	#histo should start from 0 and bins from 0 to 0.6 are blank. if necessary should be done for all variables
+        #print self.__header_info[ 'H_NAME' ], self.__header_info[ 'RBINS' ]
+        #print self.__header_info[ 'PBINS' ], self.__header_info[ 'ZBINS' ]
 
     def __decode_data(self):
         # these constants pertain to the location of the data
         self.__histogram[ 'TYPE' ] = self.__ptype
         data_points = []
         error_points = []
-	
-        for x in xrange(len(self.__data)/2):
-            data_points.append(float(self.__data[x]))
-        for x in xrange(len(self.__data)/2,len(self.__data)):
-            error_points.append(float(self.__data[x]))
-	
-	#for x in xrange(nrbins):
-		#superposition =0
-		#for n in xrange(npbins):
-			#superposition += data_points[x+(nrbins*n)]
-		#data_points.append(float(superposition/npbins))
-	#for x in xrange(nrbins):
-		#superposition=0
-		#for n in xrange(npbins):
-			#superposition += error_points[x+(nrbins*n)]
-		#error_points.append(float(superposition/npbins))
-
-        #del data_points[0:nrbins*npbins]
-        #del error_points[0:nrbins*npbins]
+        for el in xrange(len(self.__data)/2):
+            data_points.append( float( self.__data[el] ) )
+        for err in xrange(len(self.__data)/2,len(self.__data)):
+            error_points.append( float( self.__data[err] ) )
+#SO HERE I MAKE THE SUPERPOSITION OF 2 AND 3 PART OF GRAPH
+#Commented for part 1 and 4 with !!! at the begining
+#What should we do with x%2==1 bins of phi???
+        if self.__header_info[ 'PBINS' ]>3:
+            fine_data_indx=len(data_points)/4
+            #!!!second_part_of_fine_data=len(data_points)-fine_data_indx
+            #!!!for x in range(fine_data_indx):
+                #!!!superpos_el=(float(data_points[x]+data_points[second_part_of_fine_data+x])/2)
+            centre_of_fine_data=len(data_points)-(2*fine_data_indx)
+            for x in xrange(fine_data_indx,centre_of_fine_data):
+                superpos_el=float(data_points[x]+data_points[centre_of_fine_data+x%fine_data_indx])/2
+		#print superpos_el
+                data_points.append(superpos_el)
+#FOR ERRORS SHOULD BE DONE. FANCIER THAN AVERAGE???        
         self.__histogram[ 'DATA' ] = data_points
         self.__histogram[ 'ERRORS' ] = error_points
+        #print len( self.__histogram[ 'DATA' ] )
 
     def get_header_info(self):
         return ( self.__header_info )
@@ -498,8 +450,7 @@ class plot_1d(object):
         uid = next(unique_cnt)
         header = self.__parser.get_header_info()
         hdata = self.__parser.get_histogram_data()
-        name = header[ 'H_NAME' ]
-        name = name[1:]
+        name = header[ 'H_NAME' ] + str( uid )
         bins = header[ 'BINS' ]
         xlow = hdata[ 'BINS_RANGE' ][0]
         xup = hdata[ 'BINS_RANGE' ][1]
@@ -538,26 +489,20 @@ class plot_2d(object):
         hdata = self.__parser.get_histogram_data()[ 'DATA' ]
         name = header[ 'H_NAME' ] + ' ' + str( uid )
         name = name[1:]
-        nxbins = header[ 'XBINS' ]
         nybins = header[ 'YBINS' ]
         nzbins = header[ 'ZBINS' ]
-        xl = header[ 'XRAN' ][0]
-        xu = header[ 'XRAN' ][1]
         yl = header[ 'YRAN' ][0]
         yu = header[ 'YRAN' ][1]
         zl = header[ 'ZRAN' ][0]
         zu = header[ 'ZRAN' ][1]
-        n_of_histo = nzbins
-
-        self.__histo = TH3D("XYZ " + name,"XYZ " + name, int( nxbins ) , float( xl ), float( xu ), int( nybins ), float( yl ),float(  yu ), int( nzbins ), float( zl ), float( zu ))
-        self.__histo.SetXTitle("X [cm]")
+        self.__histo = TH2D(name, name, int( nzbins ) , float( zl ), float( zu ), int( nybins ), float( yl ),float(  yu ))
+        self.__histo.SetXTitle("Z [cm]")
         self.__histo.GetXaxis().CenterTitle(kTRUE)
         self.__histo.GetXaxis().SetTitleOffset(1.1)
         self.__histo.GetXaxis().SetTitleSize(0.04)
         self.__histo.GetXaxis().SetLabelSize(0.03)
         self.__histo.GetXaxis().SetTickLength(0.02)
         self.__histo.GetXaxis().SetNdivisions(20510)
-
         self.__histo.SetYTitle("Y [cm]")
         self.__histo.GetYaxis().CenterTitle(kTRUE)
         self.__histo.GetYaxis().SetTitleOffset(1.2)
@@ -565,20 +510,15 @@ class plot_2d(object):
         self.__histo.GetYaxis().SetLabelSize(0.03)
         self.__histo.GetYaxis().SetTickLength(0.02)
         self.__histo.GetYaxis().SetNdivisions(20510)
+        self.__histo.SetLineColor(kRed);
+        self.__histo.SetMinimum(1e-9);
+        self.__histo.GetZaxis().SetTitle("a.u.");
 
-        self.__histo.GetZaxis().SetTitle("Z [cm]");
-        self.__histo.GetZaxis().CenterTitle(kTRUE)
-        self.__histo.GetZaxis().SetTitleOffset(1.3)
-        self.__histo.GetZaxis().SetTitleSize(0.04)
-        self.__histo.GetZaxis().SetLabelSize(0.03)
-        self.__histo.GetZaxis().SetTickLength(0.02)
-        self.__histo.GetZaxis().SetNdivisions(20510)
-
-
-        ResX = ( xu - xl ) / nxbins
+        nxbins = header[ 'XBINS' ]
+        ResX = ( header[ 'XRAN' ][1] - header[ 'XRAN' ][0] ) / nxbins
         ResY = ( yu - yl ) / nybins
         ResZ = ( zu - zl ) / nzbins
-        FirstX = xl + ResX / 2.
+        FirstX = header[ 'XRAN' ][0] + ResX / 2.
         FirstY = yl + ResY / 2.
         FirstZ = zl + ResZ / 2.
         N = nxbins * nybins * nzbins
@@ -590,12 +530,11 @@ class plot_2d(object):
         for zentry in range( nzbins ):
             zPos[zentry] = FirstZ + float(zentry) * ResZ;
             for yentry in range( nybins ):
-                yPos[yentry] = FirstY + float( yentry ) * ResY
                 for xentry in range( nxbins ):
                     data_point = hdata[ pos_cnt ]
                     xPos[xentry] = FirstX + float( xentry ) * ResX
-                    self.__histo.Fill( float( xPos[xentry] ), float( yPos[yentry] ), float( zPos[zentry] ), float( data_point ))  
-                    self.__histo.SetFillColor(kRed)
+                    yPos[yentry] = FirstY + float( yentry ) * ResY
+                    self.__histo.Fill( zPos[zentry], yPos[yentry], data_point)
                     pos_cnt += 1
 
     def get_histo(self):
@@ -603,7 +542,7 @@ class plot_2d(object):
 
     def get_type(self):
         return ( self.__type )
-           
+        
 
 # plot 3d
 class plot_3d(object):
@@ -616,9 +555,10 @@ class plot_3d(object):
 
     def __plot_3d(self):
         global unique_cnt
+        definite_integral=0.
         uid = next(unique_cnt)
         header = self.__parser.get_header_info()
-        hdata = self.__parser.get_histogram_data()
+        hdata = self.__parser.get_histogram_data()[ 'DATA' ]
         name = header[ 'H_NAME' ] + ' ' + str( uid )
         name = name[1:]
         nrbins = header[ 'RBINS' ]
@@ -630,38 +570,30 @@ class plot_3d(object):
         pu = header[ 'PRAN' ][1]
         zl = header[ 'ZRAN' ][0]
         zu = header[ 'ZRAN' ][1]
-
         ## ------   TH2D::TH2D(const char* name, const char* title, int nbinsx, double xlow, double xup, int nbinsy, double ylow, double yup)
-        self.__histo = TH3D("RPZ " + name,"RPZ " + name, int( nrbins ), float( rl ), float( ru ), int( npbins ), float( pl ),float( pu ), int( nzbins ), float( zl ), float( zu ))
-        self.__histo.SetXTitle("R [cm]")
+        self.__histo = TH2D(name, name, int( nrbins * npbins ) , float( zl ), float( zu ), int( nrbins * npbins ), float( pl ),float(  pu ))
+        self.__histo.SetXTitle("X [cm]")
         self.__histo.GetXaxis().CenterTitle(kTRUE)
         self.__histo.GetXaxis().SetTitleOffset(1.1)
         self.__histo.GetXaxis().SetTitleSize(0.04)
         self.__histo.GetXaxis().SetLabelSize(0.03)
         self.__histo.GetXaxis().SetTickLength(0.02)
         self.__histo.GetXaxis().SetNdivisions(20510)
-
-        self.__histo.SetYTitle("P [rad]")
+        self.__histo.SetYTitle("Y [cm]")
         self.__histo.GetYaxis().CenterTitle(kTRUE)
         self.__histo.GetYaxis().SetTitleOffset(1.2)
         self.__histo.GetYaxis().SetTitleSize(0.04)
         self.__histo.GetYaxis().SetLabelSize(0.03)
         self.__histo.GetYaxis().SetTickLength(0.02)
         self.__histo.GetYaxis().SetNdivisions(20510)
+        self.__histo.SetLineColor(kRed);
         #self.__histo.SetMinimum(1e-9);
-
         self.__histo.GetZaxis().SetTitle("Z [cm]");
-        self.__histo.GetZaxis().CenterTitle(kTRUE)
-        self.__histo.GetZaxis().SetTitleOffset(1.2)
-        self.__histo.GetZaxis().SetTitleSize(0.04)
-        self.__histo.GetZaxis().SetLabelSize(0.03)
-        self.__histo.GetZaxis().SetTickLength(0.02)
-        self.__histo.GetZaxis().SetNdivisions(20510)
 
-        ResR = ( header[ 'RRAN' ][1] - header[ 'RRAN' ][0] ) / nrbins
+        ResR = ( ru - rl ) / nrbins
         ResP = ( pu - pl ) / npbins
         ResZ = ( zu - zl ) / nzbins
-        FirstR = header[ 'RRAN' ][0] + ResR / 2.
+        FirstR = rl + ResR / 2.
         FirstP = pl + ResP / 2.
         FirstZ = zl + ResZ / 2.
         N = nrbins * npbins * nzbins
@@ -669,69 +601,52 @@ class plot_3d(object):
         pPos = [ None ] * N
         zPos = [ None ] * N
         # -> fill the histo now!
-        if nzbins > 1:
-            pos_cnt = 0
-            for zentry in range( nzbins ):
-                zPos[zentry] = FirstZ + float(zentry) * ResZ;
-                for pentry in range( npbins ):
-                    pPos[pentry] = FirstP + float( pentry ) * ResP
-                    for rentry in range( nrbins ):
-                        data_point = hdata[ 'DATA' ][ pos_cnt ]
-                        rPos[rentry] = FirstR + float( rentry ) * ResR
-                        self.__histo.Fill( float( rPos[rentry] ), float( pPos[pentry] ), float( zPos[zentry] ), float( data_point ))
-                        pos_cnt += 1
-
-        else:
-            self.__histo = TH1F(header[ 'H_NAME' ] + "ZPOS = " + str(FirstZ), header[ 'H_NAME' ]+ "ZPOS = " + str(FirstZ), int(nrbins), float(rl), float(ru))
-            
-            data_points = [0] * nrbins
-            error_points = [0] * nrbins
-            pos_cnt = 0
-            for pentry in range( npbins ):
-                for rentry in range( nrbins ):
-                    data_points[rentry] += hdata[ 'DATA' ][ pos_cnt ]
-                    error_points[rentry] += hdata[ 'ERRORS' ][ pos_cnt ]
-                    pos_cnt += 1
- 
-            data_points[:] = [ x / pentry for x in data_points ]
-            error_points[:] = [ x / pentry for x in error_points ]
-            
-            for indx, data_point in enumerate( data_points ):
-                self.__histo.SetBinContent( indx, data_point )
-
-            for indx, error_point in enumerate( hdata[ 'ERRORS' ] ) :
-                error_point *= self.__histo.GetBinContent( indx ) * 0.01 / 2
-                self.__histo.SetBinError( indx , error_point )
-
-            min_val = min( hdata[ 'DATA' ] )
-            max_val = max( hdata[ 'DATA' ] )
+        pos_cnt = 0
+         
         
-            #CHARTOWE GLUPOTKI
+        uid = next(unique_cnt)
+        header = self.__parser.get_header_info()
+        hdata = self.__parser.get_histogram_data()
+        name = header[ 'H_NAME' ] + str( uid )
+        bins = header[ 'RBINS' ]
+        
+        self.__histo = [ None ]* (npbins+1)
+        #ddebg = [[],[],[],[] ]
+        #edebg = [ [],[],[],[]]
+        
+        for i in range(npbins):
+            self.__histo[i] = TH1F(name+' phi='+str(FirstP+i*ResP), name+' phi='+str(FirstP+i*ResP), int(nrbins), float(rl), float(ru))
+#SUPERPOSITION COMING RIGHT NOW!!!
+        self.__histo[npbins] = TH1F(name+' Superposition', name+' Superposition', int(nrbins), float(rl), float(ru))
+#AND ENDS RIGHT HERE            
+        for indx, data_point in enumerate( hdata[ 'DATA' ] ):
+            self.__histo[int(indx/nrbins)].SetBinContent( indx%nrbins +1, data_point )
+            if indx%nrbins==0 and indx!=0:
+                print "Definite integral for %d graph = %.4f" %(int(indx/nrbins),definite_integral)
+                definite_integral=data_point
+            else:
+                definite_integral+=data_point
+        print "Definite integral for 5 graph = %.4f" %definite_integral
+            #ddebg[int(indx/100)].append(data_point)
             
-            #self.__histo[0].SetXTitle("R [mm]")
-            #self.__histo[0].GetXaxis().CenterTitle(kTRUE)
-            #self.__histo[0].GetXaxis().SetTitleOffset(1.1)
-            #self.__histo[0].GetXaxis().SetTitleSize(0.04)
-            #self.__histo[0].GetXaxis().SetLabelSize(0.03)
-            #self.__histo[0].GetXaxis().SetTickLength(0.02)
-            #self.__histo[0].GetXaxis().SetNdivisions(20510)
-            #self.__histo[0].SetYTitle("Flux[?]")
-            #self.__histo[0].GetYaxis().CenterTitle(kTRUE)
-            #self.__histo[0].GetYaxis().SetTitleOffset(1.2)
-            #self.__histo[0].GetYaxis().SetTitleSize(0.04)
-            #self.__histo[0].GetYaxis().SetLabelSize(0.03)
-            #self.__histo[0].GetYaxis().SetTickLength(0.02)
-            #self.__histo[0].GetYaxis().SetNdivisions(20510)
-            #self.__histo[0].SetLineColor(kRed);
+        #for indx, error in enumerate( hdata[ 'ERRORS' ] ):
+            #self.__histo[int(indx/100)].SetBinError( indx%100 + 1, error )
+            #edebg[int(indx/100)].append(error)
 
-            #self.__histo[ 0 ].SetMarkerStyle( 20 )
-            #self.__histo[ 0 ].SetMarkerSize( 0.6 )
+        #print len(ddebg[0]), len(ddebg[1]), len(ddebg[2]), len(ddebg[3])
+        #print len(edebg[0]), len(edebg[1]), len(edebg[2]), len(edebg[3]),
+
+        min_val = min( hdata[ 'DATA' ] )
+        max_val = max( hdata[ 'DATA' ] )
+        
+        for l in range(npbins):
+            self.__histo[l].SetMarkerStyle( 20 )
+            self.__histo[l].SetMarkerSize( 0.6 )
+
+
 
     def get_histo(self):
         return ( self.__histo )
-
-    def get_parser(self):
-	return ( self.__parser )
 
     def get_type(self):
         return ( self.__type )

@@ -39,7 +39,7 @@ def main():
        file = TFile( 'fluka2root.root', 'recreate' )
 
    # set for apperance
-   c = TCanvas('USRTRACK CARTESIAN REFERENCE FRAME 2D - XY', 'USRTRACK CARTESIAN REFERENCE FRAME 2D - XY', 670, 400)
+   c = TCanvas('f2r_test', 'f2r Test', 600, 400)
    gStyle.SetPalette(1)
    gStyle.SetOptStat(0)
    gStyle.SetOptFit(0)
@@ -48,28 +48,29 @@ def main():
    for plot in plots:
        if plot.get_type() == '1DPLOT':
            if PLOT1D:
-               plot.get_histo().Draw()
+               plot.get_histo().Draw('P')
                plot.get_histo().Write()
        if plot.get_type() == '2DPLOT':
            if PLOT2D:
-               #gPad.SetLogz()
-               #gPad.SetGridx()
-               #gPad.SetGridy()
-               #plot.get_histo().Draw('P')
+               gPad.SetLogz()
+               gPad.SetGridx()
+               gPad.SetGridy()
                plot.get_histo().Write()
        if plot.get_type() == '3DPLOT':
            if PLOT3D:
-               #gPad.SetLogz();
-               #gPad.SetGridx();
-               #gPad.SetGridy();
-               #plot.get_histo().Draw('P')
-               plot.get_histo().Write()
-
+               gPad.SetLogz();
+               gPad.SetGridx();
+               gPad.SetGridy();
+               hist = plot.get_histo()
+               for i in xrange(len(hist)):
+                  #hist[i].Draw()
+                  #raw_input('Close the window and press enter')
+                  hist[i].Write()
 
    file.Close()
 
-   print ' --> Press enter to finish... '
-   raw_input()
+   #print ' --> Press enter to finish... '
+   #raw_input()
 
 if __name__ == "__main__":
     main()
